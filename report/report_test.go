@@ -2,56 +2,45 @@ package report
 
 import (
 	"context"
-	"log"
-	"net/http"
 	"reflect"
 	"testing"
 	"time"
 
-	"github.com/LeonFelipeCordero/mentortivity-backend/firestore"
+	gfirestore "cloud.google.com/go/firestore"
+	internal "github.com/LeonFelipeCordero/mentortivity-backend/firestore"
 	"github.com/LeonFelipeCordero/mentortivity-backend/schema"
-	"github.com/joho/godotenv"
+	"github.com/LeonFelipeCordero/mentortivity-backend/testingUtils"
 )
 
 func TestReportGeneration(t *testing.T) {
-	godotenv.Load("../.env.test.local")
+	testingUtils.LoadTestEnv()
 
 	t.Run("Create Report", func(t *testing.T) {
-		client := firestore.NewFirestoreClient()
-		createNotebook()
+		client := internal.NewFirestoreClient()
+		testingUtils.CreateNotebook()
 
-		reportGenerator := DefaultReportGenerator{}
-		got := reportGenerator.CreateReport(*client, schema.FullNotebook{
-			Id: "12345",
-			Notebook: schema.Notebook{
-				Email:         "test@email.com",
-				Interruptions: 1,
-				Pomodoros:     3,
-				PomodoroTimer: 4,
-			},
-		})
-		want := schema.Report{Interruptions: 1, Pomodoros: 3, PomodoroTimer: 4, Date: time.Now().Format("01-02-2006")}
+		got := createReport(client)
+		want := schema.Report{
+			Interruptions:      1,
+			Pomodoros:          3,
+			PomodoroTimer:      4,
+			Date:               time.Now().Format("01-02-2006"),
+			PendingToDoneRatio: "3:6",
+			WeakVerbs:          []string{"prepare", "create", "implement", "investigate"},
+		}
 
 		if !reflect.DeepEqual(got, want) {
 			t.Errorf("got %v want %v", got, want)
 		}
-		client.Close()
+
+		testingUtils.DeleteData()
 	})
 
 	t.Run("Save report as sub collecion", func(t *testing.T) {
-		client := firestore.NewFirestoreClient()
-		createNotebook()
+		client := internal.NewFirestoreClient()
+		testingUtils.CreateNotebook()
 
-		reportGenerator := DefaultReportGenerator{}
-		got := reportGenerator.CreateReport(*client, schema.FullNotebook{
-			Id: "12345",
-			Notebook: schema.Notebook{
-				Email:         "test@email.com",
-				Interruptions: 1,
-				Pomodoros:     3,
-				PomodoroTimer: 4,
-			},
-		})
+		got := createReport(client)
 		document, err := client.Collection("notebooks").Doc("12345").Collection("reports").Where("pomodoros", "==", 3).Documents(context.Background()).Next()
 
 		if err != nil {
@@ -65,38 +54,51 @@ func TestReportGeneration(t *testing.T) {
 			t.Errorf("got %v want %v", got, want)
 		}
 
-		deleteData()
-		client.Close()
+		testingUtils.DeleteData()
 	})
 
-}
+	t.Run("Should get done pending ratio from tasks", func(t *testing.T) {
+		client := internal.NewFirestoreClient()
+		testingUtils.CreateNotebook()
 
-func deleteData() {
-	client := http.Client{}
-	request, err := http.NewRequest(
-		"DELETE", "http://localhost:8080/emulator/v1/projects/mentortivity-96f2a/databases/(default)/documents", nil,
-	)
+		got := createReport(client).PendingToDoneRatio
+		want := "3:6"
 
-	if err != nil {
-		panic("Something went wrong creating request to delete documents")
-	}
+		if got != want {
+			t.Errorf("got %v want %v", got, want)
+		}
 
-	resp, err := client.Do(request)
-
-	if err != nil {
-		panic("Something went wrong calling firestore to delete documentes")
-	}
-
-	log.Printf("Status: %s", resp.Status)
-}
-
-func createNotebook() {
-	client := firestore.NewFirestoreClient()
-	client.Collection("notebook").Doc("12345").Create(context.Background(), map[string]interface{}{
-		"email":         "test@email.com",
-		"interruptions": 1,
-		"pomodoros":     3,
-		"pomodoroTimer": 4,
+		testingUtils.DeleteData()
 	})
-	client.Close()
+
+	t.Run("Should get done pending ratio from tasks", func(t *testing.T) {
+		client := internal.NewFirestoreClient()
+		testingUtils.CreateNotebook()
+
+		got := createReport(client).WeakVerbs
+		want := []string{"prepare", "create", "implement", "investigate"}
+
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("got %v want %v", got, want)
+		}
+
+		testingUtils.DeleteData()
+	})
+
+	testingUtils.DeleteData()
+}
+
+func createReport(client *gfirestore.Client) schema.Report {
+	reportGenerator := DefaultReportGenerator{}
+	return reportGenerator.CreateReport(*client, schema.FullNotebook{
+		Id: "12345",
+		Notebook: schema.Notebook{
+			Email:         "test@email.com",
+			Interruptions: 1,
+			Pomodoros:     3,
+			PomodoroTimer: 4,
+		},
+		Tasks: testingUtils.LoadMockTasks(),
+	})
+
 }

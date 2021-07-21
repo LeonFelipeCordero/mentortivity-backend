@@ -22,11 +22,8 @@ func CloseDay(client firestore.Client, reportGenerator report.ReportGenerator, i
 		},
 	)
 
-	client.Collection(notebookCollection).Doc(id).Update(context.Background(), []firestore.Update{
-		{Path: "pomodoros", Value: 0},
-		{Path: "interruptions", Value: 0},
-		{Path: "pomodoroTimer", Value: 0},
-	})
+	resetCounters(client, id)
+	// TODO send tasks to expired after closing day
 
 	return report
 }
@@ -42,4 +39,12 @@ func getNotebookById(client firestore.Client, id string) schema.Notebook {
 	notebook := schema.Notebook{}
 	document.DataTo(&notebook)
 	return notebook
+}
+
+func resetCounters(client firestore.Client, id string) {
+	client.Collection(notebookCollection).Doc(id).Update(context.Background(), []firestore.Update{
+		{Path: "pomodoros", Value: 0},
+		{Path: "interruptions", Value: 0},
+		{Path: "pomodoroTimer", Value: 0},
+	})
 }

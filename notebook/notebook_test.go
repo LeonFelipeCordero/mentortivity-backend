@@ -1,9 +1,6 @@
 package notebook
 
 import (
-	"context"
-	"log"
-	"net/http"
 	"reflect"
 	"testing"
 	"time"
@@ -11,15 +8,15 @@ import (
 	gfirestore "cloud.google.com/go/firestore"
 	internal "github.com/LeonFelipeCordero/mentortivity-backend/firestore"
 	"github.com/LeonFelipeCordero/mentortivity-backend/schema"
-	"github.com/joho/godotenv"
+	"github.com/LeonFelipeCordero/mentortivity-backend/testingUtils"
 )
 
 func TestNotebooksCollections(t *testing.T) {
-	godotenv.Load("../.env.test.local")
+	testingUtils.LoadTestEnv()
 
 	t.Run("Get notebook by id", func(t *testing.T) {
 		client := internal.NewFirestoreClient()
-		createNotebook()
+		testingUtils.CreateNotebook()
 
 		got := getNotebookById(*client, "12345")
 		want := schema.Notebook{Email: "test@email.com", Interruptions: 1, Pomodoros: 3, PomodoroTimer: 4}
@@ -28,13 +25,13 @@ func TestNotebooksCollections(t *testing.T) {
 			t.Errorf("got %v want %v", got, want)
 		}
 
-		deleteData()
+		testingUtils.DeleteData()
 		client.Close()
 	})
 
 	t.Run("Clear notebook when closing day", func(t *testing.T) {
 		client := internal.NewFirestoreClient()
-		createNotebook()
+		testingUtils.CreateNotebook()
 
 		reportGenerator := TestReportGenerator{reports: 0}
 		CloseDay(*client, &reportGenerator, "12345")
@@ -46,13 +43,13 @@ func TestNotebooksCollections(t *testing.T) {
 			t.Errorf("got %v want %v", got, want)
 		}
 
-		deleteData()
+		testingUtils.DeleteData()
 		client.Close()
 	})
 
 	t.Run("Return report when closing day", func(t *testing.T) {
 		client := internal.NewFirestoreClient()
-		createNotebook()
+		testingUtils.CreateNotebook()
 
 		reportGenerator := TestReportGenerator{reports: 0}
 		got := CloseDay(*client, &reportGenerator, "12345")
@@ -62,39 +59,25 @@ func TestNotebooksCollections(t *testing.T) {
 			t.Errorf("got %v want %v", got, want)
 		}
 
-		deleteData()
 		client.Close()
 	})
-}
 
-func deleteData() {
-	client := http.Client{}
-	request, err := http.NewRequest(
-		"DELETE", "http://localhost:8080/emulator/v1/projects/mentortivity-96f2a/databases/(default)/documents", nil,
-	)
+	t.Run("Load tasks per report", func(t *testing.T) {
+		client := internal.NewFirestoreClient()
+		testingUtils.CreateNotebook()
 
-	if err != nil {
-		panic("Something went wrong creating request to delete documents")
-	}
+		reportGenerator := TestReportGenerator{reports: 0}
+		got := CloseDay(*client, &reportGenerator, "12345")
+		want := schema.Report{Interruptions: 1, Pomodoros: 3, PomodoroTimer: 4, Date: time.Now().Format("01-02-2006")}
 
-	resp, err := client.Do(request)
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("got %v want %v", got, want)
+		}
 
-	if err != nil {
-		panic("Something went wrong calling firestore to delete documentes")
-	}
-
-	log.Printf("Status: %s", resp.Status)
-}
-
-func createNotebook() {
-	client := internal.NewFirestoreClient()
-	client.Collection(notebookCollection).Doc("12345").Create(context.Background(), map[string]interface{}{
-		"email":         "test@email.com",
-		"interruptions": 1,
-		"pomodoros":     3,
-		"pomodoroTimer": 4,
+		client.Close()
 	})
-	client.Close()
+
+	testingUtils.DeleteData()
 }
 
 type TestReportGenerator struct {
@@ -104,11 +87,23 @@ type TestReportGenerator struct {
 func (reportGenerator *TestReportGenerator) CreateReport(client gfirestore.Client, notebook schema.FullNotebook) schema.Report {
 	reportGenerator.reports += 1
 	report := schema.Report{
-		Interruptions: notebook.Notebook.Interruptions,
-		Pomodoros:     notebook.Notebook.Pomodoros,
-		PomodoroTimer: notebook.Notebook.PomodoroTimer,
-		Date:          time.Now().Format("01-02-2006"),
+		Interruptions:      notebook.Notebook.Interruptions,
+		Pomodoros:          notebook.Notebook.Pomodoros,
+		PomodoroTimer:      notebook.Notebook.PomodoroTimer,
+		Date:               time.Now().Format("01-02-2006"),
+		PendingToDoneRatio: 0,
+		WeakVerbs:          []string{},
 	}
-
 	return report
+}
+
+type TestTaskLoader struct {
+	loads int
+}
+
+func (loader *TestTaskLoader) LoadTasks(client gfirestore.Client, id string) []schema.Task {
+	loader.loads += 1
+	tasks := []schema.Task{}
+	testingUtils.LoadFromFiles("../testUtils/tasks.json", tasks)
+	return tasks
 }

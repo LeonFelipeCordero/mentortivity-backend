@@ -1,16 +1,16 @@
 package schema
 
 type Notebook struct {
-	Email         string `firestore:"email,omitempty"`
-	Interruptions int    `firestore:"interruptions,omitempty"`
-	Pomodoros     int    `firestore:"pomodoros,omitempty"`
-	PomodoroTimer int    `firestore:"pomodoroTimer,omitempty"`
+	Email         string `firestore:"email,omitempty" json:"email"`
+	Interruptions int    `firestore:"interruptions,omitempty" json:"interruptions"`
+	Pomodoros     int    `firestore:"pomodoros,omitempty" json:"pomodoros"`
+	PomodoroTimer int    `firestore:"pomodoroTimer,omitempty" json:"pomodoroTimer"`
 }
 
 type Task struct {
-	Datetime    string `firestore:"datetime,omitempty"`
-	Description string `firestore:"description,omitempty"`
-	Status      string `firestore:"status,omitempty"`
+	Datetime    string `firestore:"datetime,omitempty" json:"datetinme"`
+	Description string `firestore:"description,omitempty" json:"description"`
+	Status      string `firestore:"status,omitempty" json:"status"`
 }
 
 type FullNotebook struct {
@@ -20,8 +20,10 @@ type FullNotebook struct {
 }
 
 type Report struct {
-	Interruptions int    `firestore:"interruptions,omitempty"`
-	Pomodoros     int    `firestore:"pomodoros,omitempty"`
-	PomodoroTimer int    `firestore:"pomodoroTimer,omitempty"`
-	Date          string `firestore:"Date,omitempty"`
+	Interruptions      int      `firestore:"interruptions,omitempty"`
+	Pomodoros          int      `firestore:"pomodoros,omitempty"`
+	PomodoroTimer      int      `firestore:"pomodoroTimer,omitempty"`
+	PendingToDoneRatio string   `firestore:"pendingToDoneRatio,omitempty"`
+	WeakVerbs          []string `firestore:"weakVerbs,omitempty"`
+	Date               string   `firestore:"date,omitempty"`
 }
